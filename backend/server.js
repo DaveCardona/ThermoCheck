@@ -14,10 +14,13 @@ require("./db");
 const registerRoutes = require("./routes/register");
 const loginRoutes = require("./routes/login");
 const catalogosRoutes = require("./routes/catalogos.routes");
+const medidasRoutes = require("./routes/medidas");
+
 
 app.use("/", registerRoutes);
 app.use("/", loginRoutes);
 app.use("/", catalogosRoutes);
+app.use("/", medidasRoutes);
 
 app.get("/", (req, res) => {
   res.send("API funcionando 🚀");

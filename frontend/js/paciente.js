@@ -1,176 +1,241 @@
-/* ════════════════════════════════
-   paciente.js — Panel del paciente
-════════════════════════════════ */
-
 let lecturaTemp = null;
+let medidas = [];
 
-/* ── Init: restaurar sesión desde sessionStorage ── */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const sesion = sessionStorage.getItem('currentUser');
   if (!sesion) {
     window.location.href = 'login.html';
     return;
   }
+
   currentUser = JSON.parse(sesion);
 
   const screen = document.getElementById('screen-paciente');
   if (screen) screen.classList.add('active');
 
+  await cargarMedidas(); // 🔥 IMPORTANTE
   initPaciente();
 });
 
-//  Bloquear botón atrás después de logout
-window.addEventListener('pageshow', function (event) {
-  if (!sessionStorage.getItem('currentUser')) {
-    window.location.replace('login.html');
-  }
-});
+/* ───────────── UTILS ───────────── */
+
+function obtenerIniciales(nombreCompleto) {
+  if (!nombreCompleto) return "--";
+
+  const partes = nombreCompleto.trim().split(" ");
+  if (partes.length === 1) return partes[0][0].toUpperCase();
+
+  return (partes[0][0] + partes[1][0]).toUpperCase();
+}
+
+/* ───────────── INIT ───────────── */
 
 function initPaciente() {
-  const av  = document.getElementById('pac-avatar');
-  const nom = document.getElementById('pac-nombre');
-  const fec = document.getElementById('pac-fecha-hoy');
-  if (av)  av.textContent  = currentUser.avatar;
-  if (nom) nom.textContent = currentUser.nombre;
-  if (fec) fec.textContent = new Date().toLocaleDateString('es-CO', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
+  document.getElementById('pac-avatar').textContent = obtenerIniciales(currentUser.nombre);
+  document.getElementById('pac-nombre').textContent = currentUser.nombre;
+
+  document.getElementById('pac-fecha-hoy').textContent =
+    new Date().toLocaleDateString('es-CO', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
   renderEstadoHoy();
   renderHistorial();
 }
 
-/* ── Estado hoy ── */
-function renderEstadoHoy() {
-  const hoy    = hoyISO();
-  const lecHoy = LECTURAS.find(
-    l => l.usuario === currentUser.username && l.fecha === hoy
-  );
+/* ───────────── BACKEND ───────────── */
 
-  const elIcon   = document.getElementById('status-icon');
-  const elTitulo = document.getElementById('status-titulo');
-  const elDesc   = document.getElementById('status-desc');
-  const elTemp   = document.getElementById('status-temp');
-  const elBtn    = document.getElementById('btn-tomar');
-  if (!elIcon || !elBtn) return;
+async function cargarMedidas() {
+  try {
+    const res = await fetch(`http://localhost:3000/medidas/${currentUser.id_usuario}`);
+    const data = await res.json();
 
-  if (lecHoy) {
-    const info = getEstadoInfo(lecHoy.estado);
-    elIcon.className    = 'status-indicator ' + info.clase;
-    elIcon.textContent  = lecHoy.estado === 'normal' ? '✓' : '⚠';
-    elTitulo.textContent = info.label;
-    elDesc.textContent   = info.consejo;
-    elTemp.className     = 'temp-grande ' + info.clase;
-    elTemp.textContent   = lecHoy.temp.toFixed(1) + '°C';
-    elBtn.className  = 'btn-tomar tomada';
-    elBtn.innerHTML  = `<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Temperatura registrada hoy`;
-    elBtn.onclick    = null;
-  } else {
-    elIcon.className    = 'status-indicator none';
-    elIcon.textContent  = '🌡️';
-    elTitulo.textContent = 'Sin lectura hoy';
-    elDesc.textContent   = 'Aún no has registrado tu temperatura hoy.';
-    elTemp.className     = 'temp-grande none';
-    elTemp.textContent   = '--.-°';
-    elBtn.className  = 'btn-tomar';
-    elBtn.innerHTML  = `
-      <svg viewBox="0 0 24 24">
-        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M9 22h6"/>
-      </svg>
-      Tomar temperatura ahora`;
-    elBtn.onclick = abrirModal;
+    if (!data.success) {
+      showToast("Error cargando historial", "error");
+      return;
+    }
+
+    medidas = data.data.map(m => {
+      const fechaObj = new Date(m.fecha);
+
+      return {
+        temp: parseFloat(m.temperatura),
+        fecha: fechaObj.toISOString().split("T")[0],
+        hora: fechaObj.toTimeString().slice(0, 5),
+        estado: clasificarTemp(parseFloat(m.temperatura))
+      };
+    });
+
+  } catch (error) {
+    console.error(error);
+    showToast("Error de conexión", "error");
   }
 }
 
-/* ── Historial ── */
+/* ───────────── ESTADO HOY ───────────── */
+
+function renderEstadoHoy() {
+  const hoy = hoyISO();
+
+  const lecturasHoy = medidas
+    .filter(m => m.fecha === hoy)
+    .sort((a, b) => b.hora.localeCompare(a.hora));
+
+  const ultima = lecturasHoy[0];
+
+  const btn = document.getElementById('btn-tomar');
+  const icon = document.getElementById('status-icon');
+  const titulo = document.getElementById('status-titulo');
+  const desc = document.getElementById('status-desc');
+  const temp = document.getElementById('status-temp');
+
+  if (lecturasHoy.length >= 3) {
+  btn.innerHTML = "Máximo de mediciones alcanzado";
+  btn.className = "btn-tomar tomada";
+  btn.onclick = null;
+  btn.disabled = true; //  IMPORTANTE
+  return;
+}
+
+  if (ultima) {
+    const info = getEstadoInfo(ultima.estado);
+
+    icon.className = 'status-indicator ' + info.clase;
+    icon.textContent = ultima.estado === 'normal' ? '✓' : '⚠';
+
+    titulo.textContent = info.label;
+    desc.textContent = info.consejo;
+
+    temp.textContent = ultima.temp.toFixed(1) + '°C';
+    temp.className = 'temp-grande ' + info.clase;
+
+    btn.className = 'btn-tomar tomada';
+    btn.innerHTML = "Tomar otra medición";
+    btn.onclick = abrirModal;
+
+  } else {
+    btn.className = 'btn-tomar';
+    btn.innerHTML = "Tomar temperatura ahora";
+    btn.onclick = abrirModal;
+  }
+}
+
+/* ───────────── HISTORIAL ───────────── */
+
 function renderHistorial() {
-  const mis = LECTURAS
-    .filter(l => l.usuario === currentUser.username)
-    .sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
-
   const el = document.getElementById('pac-historial');
-  if (!el) return;
 
-  if (!mis.length) {
-    el.innerHTML = '<div class="empty-state">No hay lecturas registradas aún</div>';
+  if (!medidas.length) {
+    el.innerHTML = '<div class="empty-state">No hay lecturas registradas</div>';
     return;
   }
 
-  el.innerHTML = mis.map(l => {
-    const info = getEstadoInfo(l.estado);
+  el.innerHTML = medidas.map(m => {
+    const info = getEstadoInfo(m.estado);
+
     return `
     <div class="historial-item">
       <div class="dot ${info.clase}"></div>
-      <div class="h-fecha">${formatFecha(l.fecha)} — ${l.hora}</div>
-      <div class="h-temp" style="color:${info.color}">${l.temp.toFixed(1)}°C</div>
-      <span class="badge-estado ${info.clase}">${info.label}</span>
-    </div>`;
+      <div class="h-fecha">${formatFecha(m.fecha)} — ${m.hora}</div>
+      <div class="h-temp" style="color:${info.color}">
+        ${m.temp.toFixed(1)}°C
+      </div>
+      <span class="badge-estado ${info.clase}">
+        ${info.label}
+      </span>
+    </div>
+    `;
   }).join('');
 }
 
-/* ── Modal ── */
-function abrirModal() {
-  lecturaTemp = null;
-  const esc = document.getElementById('modal-escaneando');
-  const res = document.getElementById('modal-resultado');
-  const ov  = document.getElementById('modal-toma');
-  if (!ov) return;
-  if (esc) esc.style.display = 'block';
-  if (res) res.style.display = 'none';
-  ov.classList.add('open');
+/* ───────────── MODAL ───────────── */
 
-  /* Simulación — reemplazar por fetch real al ESP32 */
+function abrirModal() {
+  const hoy = hoyISO();
+  const lecturasHoy = medidas.filter(m => m.fecha === hoy);
+
+  if (lecturasHoy.length >= 3) {
+    showToast("Máximo de 3 mediciones alcanzado", "warn");
+    return;
+  }
+
+  lecturaTemp = null;
+
+  document.getElementById('modal-toma').classList.add('open');
+  document.getElementById('modal-escaneando').style.display = 'block';
+  document.getElementById('modal-resultado').style.display = 'none';
+
+  // simulación
   setTimeout(() => {
     const temp = +(35.5 + Math.random() * 4).toFixed(1);
     mostrarResultadoModal(temp);
-  }, 2800);
+  }, 2000);
 }
 
 function mostrarResultadoModal(temp) {
-  lecturaTemp      = temp;
-  const estado     = clasificarTemp(temp);
-  const info       = getEstadoInfo(estado);
-  const esc        = document.getElementById('modal-escaneando');
-  const res        = document.getElementById('modal-resultado');
-  if (esc) esc.style.display = 'none';
-  if (res) res.style.display = 'block';
+  lecturaTemp = temp;
 
-  const val = document.getElementById('modal-temp-val');
-  if (val) { val.textContent = temp.toFixed(1) + '°C'; val.style.color = info.color; }
+  const estado = clasificarTemp(temp);
+  const info = getEstadoInfo(estado);
 
-  const badge   = document.getElementById('modal-badge-estado');
-  const consejo = document.getElementById('modal-consejo');
-  if (badge)   badge.innerHTML    = `<span class="badge-estado ${info.clase}">${info.label}</span>`;
-  if (consejo) { consejo.textContent = info.consejo; consejo.style.color = info.color; }
+  document.getElementById('modal-escaneando').style.display = 'none';
+  document.getElementById('modal-resultado').style.display = 'block';
+
+  document.getElementById('modal-temp-val').textContent = temp + "°C";
+  document.getElementById('modal-temp-val').style.color = info.color;
+
+  document.getElementById('modal-badge-estado').innerHTML =
+    `<span class="badge-estado ${info.clase}">${info.label}</span>`;
+
+  document.getElementById('modal-consejo').textContent = info.consejo;
 }
 
-function confirmarLectura() {
-  if (!lecturaTemp) return;
-  const temp   = lecturaTemp;
-  const estado = clasificarTemp(temp);
+/* ───────────── GUARDAR ───────────── */
 
-  LECTURAS.unshift({
-    id:       Date.now(),
-    paciente: currentUser.nombre,
-    usuario:  currentUser.username,
-    temp, estado,
-    fecha: hoyISO(),
-    hora:  horaActual()
-  });
+async function confirmarLectura() {
+  try {
+    const res = await fetch("http://localhost:3000/medidas", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id_usuario: currentUser.id_usuario,
+        temperatura: lecturaTemp
+      })
+    });
 
-  cerrarModal();
-  renderEstadoHoy();
-  renderHistorial();
-  showToast(temp.toFixed(1) + '°C — ' + getEstadoInfo(estado).label, getEstadoInfo(estado).clase);
+    const data = await res.json();
+
+    if (!data.success) {
+      showToast(data.message, "warn");
+      return;
+    }
+
+    showToast("Temperatura guardada", "ok");
+
+
+
+    cerrarModal();
+
+    if (lecturaTemp === null) {
+      showToast("No hay lectura", "warn");
+      return;
+    }
+
+    await cargarMedidas(); // 🔥 actualizar sin recargar
+    renderEstadoHoy();
+    renderHistorial();
+
+  } catch (error) {
+    console.error(error);
+    showToast("Error servidor", "error");
+  }
 }
 
 function cerrarModal() {
-  const ov = document.getElementById('modal-toma');
-  if (ov) ov.classList.remove('open');
-  lecturaTemp = null;
+  document.getElementById('modal-toma').classList.remove('open');
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  const ov = document.getElementById('modal-toma');
-  if (ov) ov.addEventListener('click', e => { if (e.target === ov) cerrarModal(); });
-});
