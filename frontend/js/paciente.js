@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const screen = document.getElementById('screen-paciente');
   if (screen) screen.classList.add('active');
 
-  await cargarMedidas(); // 🔥 IMPORTANTE
+  await cargarMedidas(); // IMPORTANTE
   initPaciente();
 });
 
@@ -31,7 +31,7 @@ function obtenerIniciales(nombreCompleto) {
 /* ───────────── INIT ───────────── */
 
 function initPaciente() {
-  document.getElementById('pac-avatar').textContent = obtenerIniciales(currentUser.nombre);
+  document.getElementById('pac-avatar').textContent = obtenerIniciales(currentUser.nombre_completo);
   document.getElementById('pac-nombre').textContent = currentUser.nombre;
 
   document.getElementById('pac-fecha-hoy').textContent =
@@ -93,12 +93,12 @@ function renderEstadoHoy() {
   const temp = document.getElementById('status-temp');
 
   if (lecturasHoy.length >= 3) {
-  btn.innerHTML = "Máximo de mediciones alcanzado";
-  btn.className = "btn-tomar tomada";
-  btn.onclick = null;
-  btn.disabled = true; //  IMPORTANTE
-  return;
-}
+    btn.innerHTML = "Máximo de mediciones alcanzado";
+    btn.className = "btn-tomar tomada";
+    btn.onclick = null;
+    btn.disabled = true;
+    return;
+  }
 
   if (ultima) {
     const info = getEstadoInfo(ultima.estado);
@@ -115,6 +115,7 @@ function renderEstadoHoy() {
     btn.className = 'btn-tomar tomada';
     btn.innerHTML = "Tomar otra medición";
     btn.onclick = abrirModal;
+    btn.disabled = false;
 
   } else {
     btn.className = 'btn-tomar';
@@ -226,7 +227,7 @@ async function confirmarLectura() {
       return;
     }
 
-    await cargarMedidas(); // 🔥 actualizar sin recargar
+    await cargarMedidas(); //  actualizar sin recargar
     renderEstadoHoy();
     renderHistorial();
 

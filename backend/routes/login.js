@@ -21,7 +21,7 @@ router.post("/login", async (req, res) => {
 
     //  Buscar usuario
     const result = await pool.query(
-      `SELECT u.id_usuario, u.username, u.password, r.id_rol, r.nombre AS rol
+      `SELECT u.id_usuario, u.username, u.password, u.nombre, u.apellido, r.id_rol, r.nombre AS rol
        FROM usuarios u
        JOIN roles r ON u.id_rol = r.id_rol
        WHERE LOWER(u.username) = $1`,
@@ -50,6 +50,8 @@ router.post("/login", async (req, res) => {
 
     //  Eliminar password antes de enviar
     delete user.password;
+
+    user.nombre_completo = `${user.nombre} ${user.apellido}`;
 
     //  Respuesta exitosa
     res.json({

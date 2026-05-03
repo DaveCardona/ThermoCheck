@@ -6,8 +6,6 @@ router.post("/medidas", async (req, res) => {
     try {
         const { id_usuario, temperatura } = req.body;
 
-        /* ─── VALIDACIONES ─── */
-
         if (!id_usuario || temperatura === undefined) {
             return res.status(400).json({
                 success: false,
@@ -22,14 +20,12 @@ router.post("/medidas", async (req, res) => {
             });
         }
 
-        /* ─── MAX 3 POR DÍA ─── */
-
         const result = await pool.query(`
-      SELECT COUNT(*) 
-      FROM medidas 
-      WHERE id_usuario = $1 
-      AND DATE(fecha) = CURRENT_DATE
-    `, [id_usuario]);
+            SELECT COUNT(*) 
+            FROM medidas 
+            WHERE id_usuario = $1 
+            AND DATE(fecha) = CURRENT_DATE
+        `, [id_usuario]);
 
         const totalHoy = parseInt(result.rows[0].count);
 
@@ -40,12 +36,23 @@ router.post("/medidas", async (req, res) => {
             });
         }
 
-        /* ─── INSERT ─── */
-
+        // INSERT medida
         await pool.query(`
-      INSERT INTO medidas (id_usuario, temperatura)
-      VALUES ($1, $2)
-    `, [id_usuario, temperatura]);
+            INSERT INTO medidas (id_usuario, temperatura)
+            VALUES ($1, $2)
+        `, [id_usuario, temperatura]);
+
+        //  ALERTA 
+        if (temperatura >= 37.5) {
+            await pool.query(`
+                INSERT INTO alertas (id_usuario, temperatura, mensaje)
+                VALUES ($1, $2, $3)
+            `, [
+                id_usuario,
+                temperatura,
+                "Paciente con posible fiebre"
+            ]);
+        }
 
         res.json({
             success: true,
