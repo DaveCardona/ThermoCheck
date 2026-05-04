@@ -1,6 +1,19 @@
 let lecturaTemp = null;
 let medidas = [];
 
+const sesion = sessionStorage.getItem('currentUser');
+
+if (!sesion) {
+  window.location.replace('login.html');
+} else {
+  document.body.style.display = 'block'; //  mostrar solo si está autorizado
+}
+
+//  PROTECCIÓN INMEDIATA (ANTES DE QUE RENDERICE NADA)
+if (!sessionStorage.getItem('currentUser')) {
+  window.location.replace('login.html');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const sesion = sessionStorage.getItem('currentUser');
   if (!sesion) {
@@ -261,3 +274,23 @@ async function confirmarLectura() {
 function cerrarModal() {
   document.getElementById('modal-toma').classList.remove('open');
 }
+
+/* ───────────── LOGOUT ───────────── */
+
+function logout() {
+  // borrar sesión
+  sessionStorage.removeItem("currentUser");
+  sessionStorage.removeItem("medicion_token");
+
+  // redirigir
+  window.location.href = "login.html";
+}
+
+window.addEventListener('pageshow', function (event) {
+  if (event.persisted || window.performance.getEntriesByType("navigation")[0].type === "back_forward") {
+    
+    if (!sessionStorage.getItem('currentUser')) {
+      window.location.replace('login.html');
+    }
+  }
+});

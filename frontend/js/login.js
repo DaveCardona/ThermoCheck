@@ -122,6 +122,8 @@ function logout() {
   window.location.replace('login.html');
 }
 
+
+
 /* ── Enter para submit (solo en login.html) ── */
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('screen-login')) {
