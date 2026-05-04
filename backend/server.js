@@ -17,6 +17,9 @@ const catalogosRoutes = require("./routes/catalogos.routes");
 const medidasRoutes = require("./routes/medidas");
 const sesionMedicionRoutes = require("./routes/sesion-medicion");
 const medidasDeviceRoutes = require("./routes/medidas-device");
+const adminRoutes = require("./routes/admin.routes");
+const adminMedidasRoutes = require("./routes/admin.medidas");
+
 
 // Montaje de rutas
 app.use("/", registerRoutes);
@@ -26,6 +29,8 @@ app.use("/", sesionMedicionRoutes);
 
 app.use("/", medidasRoutes); //web
 app.use("/", medidasDeviceRoutes); //ESP32
+app.use("/", adminRoutes);
+app.use("/", adminMedidasRoutes);
 
 app.get("/", (req, res) => {
   res.send("API funcionando 🚀");

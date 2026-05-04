@@ -41,7 +41,32 @@ function obtenerIniciales(nombreCompleto) {
   return (partes[0][0] + partes[1][0]).toUpperCase();
 }
 
-/* ───────────── CONTROL CENTRAL 🔥 ───────────── */
+/* ───────────── UTILS EXTRA ───────────── */
+
+//  convierte fecha actual a formato YYYY-MM-DD
+function hoyISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
+//  clasifica temperatura
+function clasificarTemp(temp) {
+  if (temp >= 37.5) return 'fiebre';
+  return 'normal';
+}
+
+//  formatea fecha YYYY-MM-DD a formato bonito
+function formatFecha(fechaISO) {
+  const fecha = new Date(fechaISO);
+
+  return fecha.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+
+/* ───────────── CONTROL CENTRAL  ───────────── */
 
 function puedeTomarMedicion() {
   const hoy = hoyISO();
