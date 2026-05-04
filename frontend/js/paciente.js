@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const screen = document.getElementById('screen-paciente');
   if (screen) screen.classList.add('active');
 
-  await cargarMedidas(); // IMPORTANTE
+  await cargarMedidas();
   initPaciente();
 });
 
@@ -26,6 +26,14 @@ function obtenerIniciales(nombreCompleto) {
   if (partes.length === 1) return partes[0][0].toUpperCase();
 
   return (partes[0][0] + partes[1][0]).toUpperCase();
+}
+
+/* ───────────── CONTROL CENTRAL 🔥 ───────────── */
+
+function puedeTomarMedicion() {
+  const hoy = hoyISO();
+  const lecturasHoy = medidas.filter(m => m.fecha === hoy);
+  return lecturasHoy.length < 3;
 }
 
 /* ───────────── INIT ───────────── */
@@ -50,7 +58,7 @@ function initPaciente() {
 
 async function cargarMedidas() {
   try {
-    const res = await fetch(`http://localhost:3000/medidas/${currentUser.id_usuario}`);
+    const res = await fetch(`${CONFIG.API_URL}/medidas/${currentUser.id_usuario}`);
     const data = await res.json();
 
     if (!data.success) {
@@ -78,39 +86,38 @@ async function cargarMedidas() {
 /* ───────────── ESTADO HOY ───────────── */
 
 function renderEstadoHoy() {
-  const hoy = hoyISO();
+  const btn = document.getElementById('btn-tomar');
 
+  if (!puedeTomarMedicion()) {
+    btn.innerHTML = "Máximo de mediciones alcanzado";
+    btn.className = "btn-tomar tomada";
+    btn.disabled = true;
+    btn.onclick = null;
+
+    // refuerzo visual
+    document.getElementById('status-titulo').textContent = "Límite alcanzado";
+    document.getElementById('status-desc').textContent = "Ya realizaste 3 mediciones hoy.";
+
+    return;
+  }
+
+  const hoy = hoyISO();
   const lecturasHoy = medidas
     .filter(m => m.fecha === hoy)
     .sort((a, b) => b.hora.localeCompare(a.hora));
 
   const ultima = lecturasHoy[0];
 
-  const btn = document.getElementById('btn-tomar');
-  const icon = document.getElementById('status-icon');
-  const titulo = document.getElementById('status-titulo');
-  const desc = document.getElementById('status-desc');
-  const temp = document.getElementById('status-temp');
-
-  if (lecturasHoy.length >= 3) {
-    btn.innerHTML = "Máximo de mediciones alcanzado";
-    btn.className = "btn-tomar tomada";
-    btn.onclick = null;
-    btn.disabled = true;
-    return;
-  }
-
   if (ultima) {
     const info = getEstadoInfo(ultima.estado);
 
-    icon.className = 'status-indicator ' + info.clase;
-    icon.textContent = ultima.estado === 'normal' ? '✓' : '⚠';
+    document.getElementById('status-icon').className = 'status-indicator ' + info.clase;
+    document.getElementById('status-icon').textContent = ultima.estado === 'normal' ? '✓' : '⚠';
 
-    titulo.textContent = info.label;
-    desc.textContent = info.consejo;
+    document.getElementById('status-titulo').textContent = info.label;
+    document.getElementById('status-desc').textContent = info.consejo;
 
-    temp.textContent = ultima.temp.toFixed(1) + '°C';
-    temp.className = 'temp-grande ' + info.clase;
+    document.getElementById('status-temp').textContent = ultima.temp.toFixed(1) + '°C';
 
     btn.className = 'btn-tomar tomada';
     btn.innerHTML = "Tomar otra medición";
@@ -154,27 +161,44 @@ function renderHistorial() {
 
 /* ───────────── MODAL ───────────── */
 
-function abrirModal() {
-  const hoy = hoyISO();
-  const lecturasHoy = medidas.filter(m => m.fecha === hoy);
+async function abrirModal() {
 
-  if (lecturasHoy.length >= 3) {
+  // 🔥 CONTROL ABSOLUTO (NO TOKEN SI YA HAY 3)
+  if (!puedeTomarMedicion()) {
     showToast("Máximo de 3 mediciones alcanzado", "warn");
     return;
   }
 
   lecturaTemp = null;
 
+  const res = await fetch(`${CONFIG.API_URL}/sesion-medicion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id_usuario: currentUser.id_usuario
+    })
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    showToast(data.message || "No se pudo iniciar sesión", "error");
+    return;
+  }
+
+  sessionStorage.setItem("medicion_token", data.token);
+
   document.getElementById('modal-toma').classList.add('open');
   document.getElementById('modal-escaneando').style.display = 'block';
   document.getElementById('modal-resultado').style.display = 'none';
 
-  // simulación
   setTimeout(() => {
     const temp = +(35.5 + Math.random() * 4).toFixed(1);
     mostrarResultadoModal(temp);
   }, 2000);
 }
+
+/* ───────────── RESULTADO ───────────── */
 
 function mostrarResultadoModal(temp) {
   lecturaTemp = temp;
@@ -198,13 +222,13 @@ function mostrarResultadoModal(temp) {
 
 async function confirmarLectura() {
   try {
-    const res = await fetch("http://localhost:3000/medidas", {
+    const token = sessionStorage.getItem("medicion_token");
+
+    const res = await fetch(`${CONFIG.API_URL}/medidas`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id_usuario: currentUser.id_usuario,
+        token,
         temperatura: lecturaTemp
       })
     });
@@ -218,16 +242,11 @@ async function confirmarLectura() {
 
     showToast("Temperatura guardada", "ok");
 
-
+    sessionStorage.removeItem("medicion_token");
 
     cerrarModal();
 
-    if (lecturaTemp === null) {
-      showToast("No hay lectura", "warn");
-      return;
-    }
-
-    await cargarMedidas(); //  actualizar sin recargar
+    await cargarMedidas();
     renderEstadoHoy();
     renderHistorial();
 
@@ -236,6 +255,8 @@ async function confirmarLectura() {
     showToast("Error servidor", "error");
   }
 }
+
+/* ───────────── CERRAR MODAL ───────────── */
 
 function cerrarModal() {
   document.getElementById('modal-toma').classList.remove('open');
