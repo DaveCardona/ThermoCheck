@@ -18,7 +18,7 @@ async function cargarTiposDocumento() {
     const data = await res.json();
 
     const select = document.getElementById('reg-tipo-doc');
-    console.log(data);
+    
     
     
     data.forEach(td => {
@@ -87,7 +87,8 @@ function actualizarFuerzaPassword(val) {
 
 /* ── REGISTRO ── */
 
-async function doRegistro() {
+async function doRegistro(e) {
+  e.preventDefault();
   const g = id => (document.getElementById(id)?.value || '').trim();
 
   const nombre = g('reg-nombre');
@@ -191,6 +192,8 @@ function mostrarErrorRegistro(msg) {
 
 function mostrarExito(nombre) {
   document.getElementById('registro-form').style.display = 'none';
+  document.querySelector('.registro-header').style.display = 'none';
+
   document.getElementById('registro-exito').style.display = 'block';
   document.getElementById('exito-nombre').textContent = nombre;
 
